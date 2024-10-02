@@ -1,4 +1,4 @@
-# A simple implementation for a chess game (AI vs Human), The AI Agent is using minimax (alpha-beta) algorithm.
+A simple implementation for a chess game (AI vs Human), The AI Agent is using minimax (alpha-beta) algorithm.
 
 Added stockfish engine to play against the AI (minimax alpha-beta). (download link: https://stockfishchess.org/files/stockfish_15.1_win_x64.zip )
 
