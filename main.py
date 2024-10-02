@@ -1,0 +1,267 @@
+import pygame
+import chess
+import chess.svg
+import io
+import random
+import chess.engine
+
+# Constants for the GUI
+SCREEN_WIDTH = 640
+SCREEN_HEIGHT = 640
+BOARD_SIZE = min(SCREEN_WIDTH, SCREEN_HEIGHT)
+SQUARE_SIZE = BOARD_SIZE // 8
+FPS = 60
+
+# Initialize Pygame
+pygame.init()
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+clock = pygame.time.Clock()
+
+# Load the chess pieces images
+pieces_images = {}
+pieces_images['white'] = {}
+pieces_images['black'] = {}
+
+for piece_type in ['r', 'n', 'b', 'q', 'k', 'p']:
+    pieces_images['white'][piece_type] = pygame.image.load(f'pieces/white_{piece_type}.png')
+    pieces_images['black'][piece_type] = pygame.image.load(f'pieces/black_{piece_type}.png')
+
+# Function to draw the chessboard and pieces
+def draw_board(board):
+    for row in range(8):
+        for col in range(8):
+            square_color = (255, 206, 158) if (row + col) % 2 == 0 else (209, 139, 71)
+            pygame.draw.rect(screen, square_color, (col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
+            piece = board.piece_at(8 * row + col)
+            if piece:
+                piece_color = 'white' if piece.color == chess.WHITE else 'black'
+                piece_image = pieces_images[piece_color][piece.symbol().lower()]
+                piece_rect = piece_image.get_rect(center=(col * SQUARE_SIZE + SQUARE_SIZE // 2, row * SQUARE_SIZE + SQUARE_SIZE // 2))
+                screen.blit(piece_image, piece_rect)
+
+# Heuristic evaluation function
+def evaluate_board(board):
+    # Count the total number of pieces each player has
+    w_pawns = len(board.pieces(chess.PAWN, chess.WHITE))
+    b_pawns = len(board.pieces(chess.PAWN, chess.BLACK))
+    w_knights = len(board.pieces(chess.KNIGHT, chess.WHITE))
+    b_knights = len(board.pieces(chess.KNIGHT, chess.BLACK))
+    w_bishops = len(board.pieces(chess.BISHOP, chess.WHITE))
+    b_bishops = len(board.pieces(chess.BISHOP, chess.BLACK))
+    w_rooks = len(board.pieces(chess.ROOK, chess.WHITE))
+    b_rooks = len(board.pieces(chess.ROOK, chess.BLACK))
+    w_queens = len(board.pieces(chess.QUEEN, chess.WHITE))
+    b_queens = len(board.pieces(chess.QUEEN, chess.BLACK))
+
+    # Calculate the material score for each player
+    w_material = 1 * w_pawns + 3 * w_knights + 3 * w_bishops + 5 * w_rooks + 9 * w_queens
+    b_material = 1 * b_pawns + 3 * b_knights + 3 * b_bishops + 5 * b_rooks + 9 * b_queens
+
+    # Return the difference in material score as the heuristic evaluation
+    return w_material - b_material
+
+# Minimax algorithm with alpha-beta pruning
+def minimax(board, depth, alpha, beta, max_player):
+    if depth == 0 or board.is_game_over():
+        return evaluate_board(board)
+
+    if max_player:
+        max_eval = float('-inf')
+        for move in board.legal_moves:
+            board.push(move)
+            eval = minimax(board, depth - 1, alpha, beta, False)
+            board.pop()
+            max_eval = max(max_eval, eval)
+            alpha = max(alpha, eval)
+            if beta <= alpha:
+                break
+        return max_eval
+    else:
+        min_eval = float('inf')
+        for move in board.legal_moves:
+            board.push(move)
+            eval = minimax(board, depth - 1, alpha, beta, True)
+            board.pop()
+            min_eval = min(min_eval, eval)
+            beta = min(beta, eval)
+            if beta <= alpha:
+                break
+        return min_eval
+
+# Minimax algorithm without alpha-beta pruning
+def minimax_withoutAlphaBeta(board, depth, max_player):
+    if depth == 0 or board.is_game_over():
+        return evaluate_board(board)
+
+    if max_player:
+        max_eval = float('-inf')
+        for move in board.legal_moves:
+            board.push(move)
+            eval = minimax_withoutAlphaBeta(board, depth - 1, False)
+            board.pop()
+            max_eval = max(max_eval, eval)
+        return max_eval
+    else:
+        min_eval = float('inf')
+        for move in board.legal_moves:
+            board.push(move)
+            eval = minimax_withoutAlphaBeta(board, depth - 1, True)
+            board.pop()
+            min_eval = min(min_eval, eval)
+        return min_eval
+
+# AI agent function that chooses the best move using the minimax algorithm with alpha-beta pruning
+def ai_move(board, difficulty):
+    if difficulty == "easy":
+        depth = 2
+    elif difficulty == "medium":
+        depth = 3
+    elif difficulty == "hard":
+        depth = 4
+    else:
+        depth = 3  # default to medium difficulty
+    best_score = float('-inf')
+    best_move = None
+    for move in board.legal_moves:
+        board.push(move)
+        eval = minimax(board, depth - 1, float('-inf'), float('inf'), False)
+        board.pop()
+        if eval > best_score:
+            best_score = eval
+            best_move = move
+    return best_move
+
+# AI agent function that chooses the best move using the minimax algorithm
+def ai_move_withoutAlphaBeta(board, difficulty):
+    if difficulty == "easy":
+        depth = 2
+    elif difficulty == "medium":
+        depth = 3
+    elif difficulty == "hard":
+        depth = 4
+    else:
+        depth = 3  # default to medium difficulty
+    best_score = float('-inf')
+    best_move = None
+    for move in board.legal_moves:
+        board.push(move)
+        eval = minimax_withoutAlphaBeta(board, depth - 1, False)
+        board.pop()
+        if eval > best_score:
+            best_score = eval
+            best_move = move
+    return best_move
+
+
+def draw_menu(difficulty, algorithm):
+    font = pygame.font.Font(None, 36)
+    text_difficulty = font.render("Select Difficulty:", True, (0, 0, 0))
+    text_algorithm = font.render("Select Algorithm:", True, (0, 0, 0))
+    screen.blit(text_difficulty, (SCREEN_WIDTH // 2 - 100, 200))
+    screen.blit(text_algorithm, (SCREEN_WIDTH // 2 - 100, 340))
+
+    font = pygame.font.Font(None, 24)
+    text_easy = font.render("Easy", True, (0, 0, 0))
+    text_medium = font.render("Medium", True, (0, 0, 0))
+    text_hard = font.render("Hard", True, (0, 0, 0))
+    screen.blit(text_easy, (SCREEN_WIDTH // 2 - 100, 240))
+    screen.blit(text_medium, (SCREEN_WIDTH // 2 - 100, 270))
+    screen.blit(text_hard, (SCREEN_WIDTH // 2 - 100, 300))
+
+    if difficulty == "easy":
+        pygame.draw.rect(screen, (0, 255, 0), (SCREEN_WIDTH // 2 - 130, 240, 20, 20), 2)
+    elif difficulty == "medium":
+        pygame.draw.rect(screen, (0, 255, 0), (SCREEN_WIDTH // 2 - 130, 270, 20, 20), 2)
+    elif difficulty == "hard":
+        pygame.draw.rect(screen, (0, 255, 0), (SCREEN_WIDTH // 2 - 130, 300, 20, 20), 2)
+
+    text_minimax = font.render("Minimax with alpha-beta", True, (0, 0, 0))
+    text_minimax_no_ab = font.render("Minimax without alpha-beta", True, (0, 0, 0))
+    screen.blit(text_minimax, (SCREEN_WIDTH // 2 - 100, 380))
+    screen.blit(text_minimax_no_ab, (SCREEN_WIDTH // 2 - 100, 410))
+
+    if algorithm == "1":
+        pygame.draw.rect(screen, (0, 255, 0), (SCREEN_WIDTH // 2 - 130, 380, 20, 20), 2)
+    elif algorithm == "2":
+        pygame.draw.rect(screen, (0, 255, 0), (SCREEN_WIDTH // 2 - 130, 410, 20, 20), 2)
+
+
+def play_game():
+    # Initialize variables for difficulty and algorithm selection
+    difficulty = None
+    algorithm = None
+    difficulty_selected = False
+    algorithm_selected = False
+
+    while not (difficulty_selected and algorithm_selected):
+        # Handle events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                # Check if the mouse is clicked on the difficulty options
+                if SCREEN_WIDTH // 2 - 130 <= event.pos[0] <= SCREEN_WIDTH // 2 - 110:
+                    if 240 <= event.pos[1] <= 260:
+                        difficulty = "easy"
+                        difficulty_selected = True
+                    elif 270 <= event.pos[1] <= 290:
+                        difficulty = "medium"
+                        difficulty_selected = True
+                    elif 300 <= event.pos[1] <= 320:
+                        difficulty = "hard"
+                        difficulty_selected = True
+                # Check if the mouse is clicked on the algorithm options
+                if SCREEN_WIDTH // 2 - 130 <= event.pos[0] <= SCREEN_WIDTH // 2 - 110:
+                    if 370 <= event.pos[1] <= 390:
+                        algorithm = "1"
+                        algorithm_selected = True
+                    elif 400 <= event.pos[1] <= 420:
+                        algorithm = "2"
+                        algorithm_selected = True
+
+        # Draw the menu and update the display
+        screen.fill((255, 255, 255))
+        draw_menu(difficulty, algorithm)
+        pygame.display.update()
+
+    # Continue with the rest of the game
+    board = chess.Board()
+    engine = chess.engine.SimpleEngine.popen_uci("C:\\Users\\qwerty\\Desktop\\stockfish-windows-2022-x86-64.exe")
+    # Game loop
+    game_over = False
+    while not game_over:
+        # Handle events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                game_over = True  # Exit the game loop when the close button is pressed
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                game_over = True  # Exit the game loop when the ESC key is pressed
+
+        # Update game state
+        if not board.is_game_over():
+            if board.turn == chess.WHITE:
+                result = engine.play(board, chess.engine.Limit(time=1))
+                board.push(result.move)
+            else:
+                if algorithm == "1":
+                     move = ai_move(board, difficulty)
+                if algorithm == "2":
+                    move = ai_move_withoutAlphaBeta(board, difficulty)
+                board.push(move)
+                print("AI plays:", move.uci())
+
+        # Draw the game board
+        print(board)
+        draw_board(board)
+        pygame.display.update()
+
+    # Game over
+    print(board.result())
+    engine.quit()
+    pygame.quit()
+
+
+
+# Start the game
+play_game()
